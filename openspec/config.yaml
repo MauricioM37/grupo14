@@ -1,0 +1,78 @@
+schema: spec-driven
+
+project: grupo14
+artifact_store: hybrid
+change_name: participacion-ciudadana-v1
+delivery_strategy: single_pr
+review_budget_lines: 99999
+iron_reviewers: disabled
+strict_tdd: false
+
+context: |
+  Stack: Next.js 15 App Router, TypeScript 5.8, React 19, Prisma 6, PostgreSQL, Groq, and whatsapp-web.js.
+  Architecture: API-first backend scaffold under backend/ with Node.js route handlers, typed integration boundaries, and a Prisma database boundary.
+  Product source of truth: docs/specs/, especially first-functional-version.md.
+  Existing state: the current backend exposes only a health endpoint; domain persistence and functional workflows are not implemented.
+  Repository conventions: work on main, preserve the existing docs/specs/ product specifications, and keep secrets out of new artifacts.
+  Planning constraint: use direct context injection for the first release; do not introduce RAG, embeddings, or vector search.
+
+testing:
+  strict_tdd: false
+  reason: No runnable test script or configured test runner is present in the active backend package; legacy test files in backendFiles/ have no local toolchain.
+  runner:
+    available: false
+    command: null
+    framework: null
+  layers:
+    unit:
+      available: false
+      tool: null
+    integration:
+      available: false
+      tool: null
+    e2e:
+      available: false
+      tool: null
+  coverage:
+    available: false
+    command: null
+  quality:
+    linter:
+      available: false
+      command: null
+    type_checker:
+      available: true
+      command: npm run typecheck (from backend/)
+      tool: TypeScript
+    formatter:
+      available: true
+      command: npm run prisma:format (Prisma schema only)
+      tool: Prisma
+
+rules:
+  proposal:
+    - Define the smallest demonstrable end-to-end slice and include rollback considerations for risky integrations.
+    - Preserve existing product specifications; record any intentional clarification in the SDD artifact first.
+  specs:
+    - Write technical artifacts in professional English.
+    - Use Given/When/Then scenarios and RFC 2119 requirement keywords.
+    - Preserve the distinction between citizen opinion and official legislative voting.
+  design:
+    - Document boundaries, data ownership, privacy controls, failure handling, and integration contracts.
+    - Include sequence diagrams for asynchronous or multi-system flows.
+  tasks:
+    - Group tasks by implementation phase and keep each task independently verifiable.
+    - Do not include application-code implementation in initialization artifacts.
+  apply:
+    tdd: false
+    test_command: ""
+    guidelines:
+      - Follow the existing backend/ TypeScript and Next.js conventions.
+      - Do not modify docs/specs/ unless a later approved SDD phase explicitly requires it.
+  verify:
+    test_command: ""
+    build_command: npm run build (from backend/)
+    typecheck_command: npm run typecheck (from backend/)
+    coverage_threshold: 0
+  archive:
+    - Warn before merging destructive or behavior-changing specification deltas.

@@ -1,0 +1,17 @@
+change: participacion-ciudadana-v1
+project: grupo14
+phase: init
+artifact_store: hybrid
+delivery_strategy: single_pr
+iron_reviewers: disabled
+artifacts:
+  exploration: false
+  proposal: false
+  specs: false
+  design: false
+  tasks: false
+  verify: false
+tasks_progress:
+  completed: []
+  pending: []
+next_phase: explore
