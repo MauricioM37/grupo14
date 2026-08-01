@@ -2,7 +2,7 @@
   "name": "hakia-backend",
   "version": "0.1.0",
   "private": true,
-  "description": "API-first backend scaffold for hakIA",
+  "description": "Participación Ciudadana Activa v1 backend",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,7 +10,13 @@
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",
-    "prisma:format": "prisma format"
+    "prisma:format": "prisma format",
+    "prisma:migrate": "tsx tests/scripts/prisma-migrate.ts",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "smoke:postgres": "tsx tests/scripts/postgres-smoke.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.2",
@@ -22,11 +28,14 @@
     "whatsapp-web.js": "^1.34.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.52.0",
     "@types/node": "^22.15.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "prisma": "^6.19.2",
-    "typescript": "^5.8.3"
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
   },
   "engines": {
     "node": ">=20.9.0"

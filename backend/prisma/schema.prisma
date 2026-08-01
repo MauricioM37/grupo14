@@ -1,6 +1,3 @@
-// Initial database boundary for the API scaffold.
-// Domain models are intentionally omitted until the first implementation slice is defined.
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,4 +5,277 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+enum ProjectStatus {
+  DRAFT
+  PROCESSING
+  READY_FOR_REVIEW
+  PUBLISHED
+  FAILED
+  UNPUBLISHED
+}
+
+enum SourceStatus {
+  PENDING
+  USABLE
+  FAILED
+}
+
+enum SummaryStatus {
+  GENERATED
+  APPROVED
+  FAILED
+}
+
+enum ConsultationStatus {
+  DRAFT
+  OPEN
+  CLOSED
+}
+
+enum DeliveryStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  FAILED
+  SKIPPED
+  OPTED_OUT
+}
+
+enum ConsentEventType {
+  OPT_IN
+  REVOCATION
+}
+
+model Admin {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  displayName String
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Citizen {
+  id                 String              @id @default(cuid())
+  numberCiphertext   String
+  numberIv           String
+  numberAuthTag      String
+  numberDigest       String              @unique
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  consentEvents      ConsentEvent[]
+  subscriptions      Subscription[]
+  audienceSnapshots  AudienceSnapshot[]
+  campaignRecipients CampaignRecipient[]
+  conversationStates ConversationState[]
+  opinions           Opinion[]
+  opinionEvents      OpinionEvent[]
+}
+
+model Category {
+  id            String         @id @default(cuid())
+  slug          String         @unique
+  name          String
+  active        Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  subscriptions Subscription[]
+  projects      Project[]
+}
+
+model ConsentEvent {
+  id                    String           @id @default(cuid())
+  citizenId             String
+  type                  ConsentEventType
+  selectedCategorySlugs Json
+  consentTextVersion    String
+  consentText           String
+  source                String
+  createdAt             DateTime         @default(now())
+  citizen               Citizen          @relation(fields: [citizenId], references: [id], onDelete: Restrict)
+
+  @@index([citizenId, createdAt])
+}
+
+model Subscription {
+  id         String   @id @default(cuid())
+  citizenId  String
+  categoryId String
+  active     Boolean  @default(true)
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
+  citizen    Citizen  @relation(fields: [citizenId], references: [id], onDelete: Restrict)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@unique([citizenId, categoryId])
+  @@index([categoryId, active])
+}
+
+model Project {
+  id            String           @id @default(cuid())
+  title         String
+  description   String
+  sourceDate    DateTime?
+  status        ProjectStatus    @default(DRAFT)
+  publishedAt   DateTime?
+  updatedAt     DateTime         @updatedAt
+  createdAt     DateTime         @default(now())
+  categories    Category[]
+  sources       ProjectSource[]
+  summaries     Summary[]
+  consultations Consultation[]
+  aggregate     AggregateResult?
+
+  @@index([status, publishedAt])
+}
+
+model ProjectSource {
+  id             String       @id @default(cuid())
+  projectId      String
+  storageKey     String
+  originalName   String
+  mimeType       String
+  fingerprint    String?
+  extractedText  String?
+  extractedChars Int          @default(0)
+  status         SourceStatus @default(PENDING)
+  errorMessage   String?
+  createdAt      DateTime     @default(now())
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([fingerprint])
+}
+
+model Summary {
+  id                 String        @id @default(cuid())
+  projectId          String
+  sourceFingerprint  String
+  promptVersion      String
+  modelConfiguration String
+  text               String
+  status             SummaryStatus @default(GENERATED)
+  generatedAt        DateTime      @default(now())
+  approvedAt         DateTime?
+  approvedBy         String?
+  errorMessage       String?
+  project            Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, sourceFingerprint, promptVersion, modelConfiguration])
+  @@index([projectId, status, generatedAt])
+}
+
+model Consultation {
+  id                String              @id @default(cuid())
+  projectId         String
+  question          String
+  options           Json
+  status            ConsultationStatus  @default(DRAFT)
+  opensAt           DateTime?
+  closesAt          DateTime?
+  disclaimer        String
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  project           Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  audienceSnapshots AudienceSnapshot[]
+  recipients        CampaignRecipient[]
+  conversations     ConversationState[]
+  opinions          Opinion[]
+  aggregate         AggregateResult?
+
+  @@index([projectId, status])
+}
+
+model AudienceSnapshot {
+  id             String             @id @default(cuid())
+  consultationId String
+  citizenId      String
+  matchedSlugs   Json
+  createdAt      DateTime           @default(now())
+  consultation   Consultation       @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  citizen        Citizen            @relation(fields: [citizenId], references: [id], onDelete: Restrict)
+  recipient      CampaignRecipient?
+
+  @@unique([consultationId, citizenId])
+}
+
+model CampaignRecipient {
+  id             String           @id @default(cuid())
+  consultationId String
+  citizenId      String
+  snapshotId     String           @unique
+  idempotencyKey String           @unique
+  status         DeliveryStatus   @default(QUEUED)
+  attempts       Int              @default(0)
+  lastError      String?
+  sentAt         DateTime?
+  deliveredAt    DateTime?
+  updatedAt      DateTime         @updatedAt
+  createdAt      DateTime         @default(now())
+  consultation   Consultation     @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  citizen        Citizen          @relation(fields: [citizenId], references: [id], onDelete: Restrict)
+  snapshot       AudienceSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@unique([consultationId, citizenId])
+  @@index([status, updatedAt])
+}
+
+model ConversationState {
+  id             String        @id @default(cuid())
+  citizenId      String
+  consultationId String?
+  projectId      String?
+  activeUntil    DateTime
+  state          String        @default("awaiting_option")
+  lastInboundKey String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  citizen        Citizen       @relation(fields: [citizenId], references: [id], onDelete: Cascade)
+  consultation   Consultation? @relation(fields: [consultationId], references: [id], onDelete: SetNull)
+
+  @@unique([citizenId])
+  @@index([activeUntil])
+}
+
+model Opinion {
+  id             String       @id @default(cuid())
+  citizenId      String
+  projectId      String
+  consultationId String
+  optionKey      String
+  optionLabel    String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  citizen        Citizen      @relation(fields: [citizenId], references: [id], onDelete: Restrict)
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Restrict)
+
+  @@unique([citizenId, projectId])
+  @@index([projectId, optionKey])
+}
+
+model OpinionEvent {
+  id             String   @id @default(cuid())
+  eventKey       String   @unique
+  citizenId      String
+  projectId      String
+  consultationId String
+  optionKey      String
+  createdAt      DateTime @default(now())
+  citizen        Citizen  @relation(fields: [citizenId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, createdAt])
+}
+
+model AggregateResult {
+  id               String       @id @default(cuid())
+  projectId        String       @unique
+  consultationId   String       @unique
+  counts           Json
+  percentages      Json
+  participantCount Int
+  version          Int          @default(1)
+  updatedAt        DateTime     @updatedAt
+  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  consultation     Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
 }
