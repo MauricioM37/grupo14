@@ -3,6 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import { getBackendConfig } from "@/lib/config";
 import { DomainError, DOMAIN_ERROR_CODE } from "@/lib/errors";
 import { createGroqIntegration, type GroqIntegration } from "@/integrations/groq";
+import { utf8Length } from "./extraction";
 
 export const SUMMARY_PROMPT_VERSION = "citizen-summary-v1";
 
@@ -20,7 +21,7 @@ export async function getOrCreateSummary(
   groq: GroqIntegration = createGroqIntegration(),
 ): Promise<{ text: string; cached: boolean; id: string }> {
   const config = getBackendConfig();
-  if (inputs.sourceText.length > config.directContextMaxChars) {
+  if (utf8Length(inputs.sourceText) > config.directContextMaxChars) {
     throw new DomainError(DOMAIN_ERROR_CODE.CONTEXT_TOO_LARGE, "El contexto del proyecto supera el máximo permitido.");
   }
   const modelConfiguration = `${config.groqChatModel}:${groq.isConfigured ? "configured" : "fallback"}`;

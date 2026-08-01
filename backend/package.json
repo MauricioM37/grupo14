@@ -8,15 +8,16 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "prisma:generate": "prisma generate",
-    "prisma:validate": "prisma validate",
+    "prisma:generate": "tsx tests/scripts/prisma-command.ts generate",
+    "prisma:validate": "tsx tests/scripts/prisma-command.ts validate",
     "prisma:format": "prisma format",
     "prisma:migrate": "tsx tests/scripts/prisma-migrate.ts",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "smoke:postgres": "tsx tests/scripts/postgres-smoke.ts"
+    "smoke:postgres": "tsx tests/scripts/postgres-smoke.ts",
+    "demo:bootstrap": "tsx tests/scripts/demo-bootstrap.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.2",

@@ -12,6 +12,7 @@ export function createFakeWhatsAppIntegration(): WhatsAppIntegration & {
   receive(message: WhatsAppInboundMessage): Promise<void>;
 } {
   const sent: WhatsAppTextMessage[] = [];
+  const idempotencyKeys = new Set<string>();
   const handlers = new Set<InboundHandler>();
   let status: WhatsAppIntegration["status"] = WHATSAPP_CLIENT_STATE.DISABLED;
   return {
@@ -20,7 +21,11 @@ export function createFakeWhatsAppIntegration(): WhatsAppIntegration & {
     sent,
     async initialize() { status = WHATSAPP_CLIENT_STATE.READY; },
     async shutdown() { status = WHATSAPP_CLIENT_STATE.DISCONNECTED; },
-    async sendText(message) { sent.push(message); },
+    async sendText(message) {
+      if (message.idempotencyKey && idempotencyKeys.has(message.idempotencyKey)) return;
+      if (message.idempotencyKey) idempotencyKeys.add(message.idempotencyKey);
+      sent.push(message);
+    },
     onMessage(handler) { handlers.add(handler); return () => handlers.delete(handler); },
     async receive(message) { for (const handler of handlers) await handler(message); },
   };
@@ -93,6 +98,7 @@ class WhatsAppLifecycle implements WhatsAppIntegration {
 
 export function createWhatsAppIntegration(): WhatsAppIntegration {
   const config = getBackendConfig();
+  if (config.whatsappFake) return createFakeWhatsAppIntegration();
   return new WhatsAppLifecycle(config.whatsappEnabled, config.whatsappSessionPath);
 }
 

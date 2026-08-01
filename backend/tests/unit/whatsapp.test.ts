@@ -10,4 +10,11 @@ describe("fake WhatsApp adapter", () => {
     expect(adapter.status).toBe("ready");
     expect(adapter.sent).toHaveLength(1);
   });
+
+  it("does not duplicate a fake send with the same idempotency key", async () => {
+    const adapter = createFakeWhatsAppIntegration();
+    await adapter.sendText({ to: "+56912345678", body: "hola", idempotencyKey: "same" });
+    await adapter.sendText({ to: "+56912345678", body: "hola", idempotencyKey: "same" });
+    expect(adapter.sent).toHaveLength(1);
+  });
 });

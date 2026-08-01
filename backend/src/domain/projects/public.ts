@@ -30,7 +30,9 @@ function projectProjection(project: {
   summaries: Array<{ text: string }>;
   consultations: Array<{ id: string; question: string; options: unknown; status: string; disclaimer: string; aggregate: { counts: unknown; percentages: unknown; participantCount: number; version: number; updatedAt: Date } | null }>;
 }) {
-  const consultation = project.consultations[0];
+  const consultation = project.consultations.find((candidate) => candidate.status === "OPEN")
+    ?? project.consultations.find((candidate) => candidate.aggregate !== null)
+    ?? project.consultations[0];
   return {
     id: project.id,
     title: project.title,

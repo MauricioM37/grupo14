@@ -9,6 +9,10 @@ export interface ExtractedPdf {
   characters: number;
 }
 
+export function utf8Length(value: string): number {
+  return Buffer.byteLength(value, "utf8");
+}
+
 function decodePdfString(value: string): string {
   const decoded = value
     .replace(/\\([\\()])/g, "$1")
@@ -45,17 +49,17 @@ export function extractPdfText(bytes: Buffer): ExtractedPdf {
   const fingerprint = createHash("sha256").update(bytes).digest("hex");
   const text = normalizeExtractedText(textFromPdfOperators(bytes.toString("latin1")));
   const minimum = getBackendConfig().minExtractedChars;
-  if (text.length < minimum) {
+  if (utf8Length(text) < minimum) {
     throw new DomainError(
       DOMAIN_ERROR_CODE.VALIDATION,
       `El PDF no contiene suficiente texto seleccionable (mínimo ${minimum} caracteres). Los PDF escaneados no están soportados en v1.`,
     );
   }
-  if (text.length > getBackendConfig().directContextMaxChars) {
+  if (utf8Length(text) > getBackendConfig().directContextMaxChars) {
     throw new DomainError(
       DOMAIN_ERROR_CODE.CONTEXT_TOO_LARGE,
       `El texto extraído supera el máximo de ${getBackendConfig().directContextMaxChars} caracteres.`,
     );
   }
-  return { text, fingerprint, characters: text.length };
+  return { text, fingerprint, characters: utf8Length(text) };
 }

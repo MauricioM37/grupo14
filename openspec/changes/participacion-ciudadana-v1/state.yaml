@@ -1,6 +1,6 @@
 change: participacion-ciudadana-v1
 project: grupo14
-phase: tasks
+phase: apply
 artifact_store: hybrid
 delivery_strategy: single_pr
 iron_reviewers: disabled
@@ -10,10 +10,9 @@ artifacts:
   specs: true
   design: true
   tasks: true
-  verify: false
+verify: false
 tasks_progress:
-  completed: []
-  pending:
+  completed:
     - 1.1
     - 1.2
     - 1.3
@@ -30,4 +29,5 @@ tasks_progress:
     - 4.1
     - 4.2
     - 4.3
-next_phase: apply
+  pending: []
+next_phase: verify

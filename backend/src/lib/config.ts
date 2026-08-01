@@ -15,6 +15,7 @@ export interface BackendConfig {
   groqApiKey: string | undefined;
   groqChatModel: string;
   whatsappEnabled: boolean;
+  whatsappFake: boolean;
   whatsappSessionPath: string | undefined;
   adminBearerToken: string | undefined;
   dataEncryptionKey: string | undefined;
@@ -48,6 +49,7 @@ export function getBackendConfig(): BackendConfig {
     groqApiKey: process.env.GROQ_API_KEY,
     groqChatModel: process.env.GROQ_CHAT_MODEL ?? DEFAULT_BACKEND_CONFIG.groqChatModel,
     whatsappEnabled: parseBoolean(process.env.WHATSAPP_ENABLED, DEFAULT_BACKEND_CONFIG.whatsappEnabled),
+    whatsappFake: parseBoolean(process.env.WHATSAPP_FAKE, false),
     whatsappSessionPath: process.env.WHATSAPP_SESSION_PATH,
     adminBearerToken: process.env.ADMIN_BEARER_TOKEN,
     dataEncryptionKey: process.env.DATA_ENCRYPTION_KEY,

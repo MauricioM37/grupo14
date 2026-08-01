@@ -49,6 +49,14 @@ Dispatch creates a persisted audience snapshot and one idempotent recipient row 
 
 ## Demo flow
 
+For a repeatable local demo, configure the existing PostgreSQL connection and run the non-destructive bootstrap. It upserts one published project, an approved source/summary, and an open consultation; it never resets, drops, truncates, or deletes records:
+
+```bash
+npm run demo:bootstrap
+```
+
+The deterministic Playwright server runs the same bootstrap automatically and sets `WHATSAPP_FAKE=true`, `WHATSAPP_ENABLED=false`, and test-only admin/encryption secrets in its child process. The fake inbound route is protected at `/api/admin/whatsapp/inbound`; it is unavailable unless the fake adapter is explicitly enabled.
+
 1. Create a category and configure the admin bearer plus encryption/HMAC secrets.
 2. Upload a selectable-text PDF at `/admin`.
 3. Process, review, and publish the project.

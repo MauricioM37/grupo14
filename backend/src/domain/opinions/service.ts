@@ -23,7 +23,16 @@ export async function recordOpinion(
   prisma: PrismaClient,
   input: { citizenId: string; projectId: string; consultationId: string; optionKey: string; eventKey: string },
 ): Promise<OpinionResult> {
-  const consultation = await prisma.consultation.findUnique({ where: { id: input.consultationId }, include: { project: true } });
+  const outcome = await prisma.$transaction((tx) => recordOpinionInTransaction(tx, input));
+  if (!outcome.duplicate) aggregateNotifier.publish({ projectId: input.projectId, consultationId: input.consultationId, ...outcome.aggregate });
+  return outcome;
+}
+
+export async function recordOpinionInTransaction(
+  tx: Prisma.TransactionClient,
+  input: { citizenId: string; projectId: string; consultationId: string; optionKey: string; eventKey: string },
+): Promise<OpinionResult> {
+  const consultation = await tx.consultation.findUnique({ where: { id: input.consultationId }, include: { project: true } });
   if (!consultation || consultation.projectId !== input.projectId || consultation.status !== "OPEN" || consultation.project.status !== "PUBLISHED") {
     throw new DomainError(DOMAIN_ERROR_CODE.CONFLICT, "La consulta no está abierta para recibir opiniones.");
   }
@@ -31,25 +40,21 @@ export async function recordOpinion(
   const option = options.find((candidate) => candidate.key === input.optionKey);
   if (!option) throw new DomainError(DOMAIN_ERROR_CODE.VALIDATION, `Opción inválida. Responde ${options.map((candidate) => candidate.key).join(", ")}.`);
 
-  const outcome = await prisma.$transaction(async (tx) => {
-    const existingEvent = await tx.opinionEvent.findUnique({ where: { eventKey: input.eventKey } });
-    if (existingEvent) {
-      const current = await tx.opinion.findUnique({ where: { citizenId_projectId: { citizenId: input.citizenId, projectId: input.projectId } } });
-      if (!current) throw new DomainError(DOMAIN_ERROR_CODE.CONFLICT, "El evento ya fue procesado.");
-      const aggregate = await computeAggregate(tx, input.projectId, input.consultationId, options);
-      return { duplicate: true, optionKey: current.optionKey, aggregate };
-    }
-    await tx.opinionEvent.create({ data: { eventKey: input.eventKey, citizenId: input.citizenId, projectId: input.projectId, consultationId: input.consultationId, optionKey: option.key } });
-    await tx.opinion.upsert({
-      where: { citizenId_projectId: { citizenId: input.citizenId, projectId: input.projectId } },
-      create: { citizenId: input.citizenId, projectId: input.projectId, consultationId: input.consultationId, optionKey: option.key, optionLabel: option.label },
-      update: { consultationId: input.consultationId, optionKey: option.key, optionLabel: option.label },
-    });
+  const existingEvent = await tx.opinionEvent.findUnique({ where: { eventKey: input.eventKey } });
+  if (existingEvent) {
+    const current = await tx.opinion.findUnique({ where: { citizenId_projectId: { citizenId: input.citizenId, projectId: input.projectId } } });
+    if (!current) throw new DomainError(DOMAIN_ERROR_CODE.CONFLICT, "El evento ya fue procesado.");
     const aggregate = await computeAggregate(tx, input.projectId, input.consultationId, options);
-    return { duplicate: false, optionKey: option.key, aggregate };
+    return { duplicate: true, optionKey: current.optionKey, aggregate };
+  }
+  await tx.opinionEvent.create({ data: { eventKey: input.eventKey, citizenId: input.citizenId, projectId: input.projectId, consultationId: input.consultationId, optionKey: option.key } });
+  await tx.opinion.upsert({
+    where: { citizenId_projectId: { citizenId: input.citizenId, projectId: input.projectId } },
+    create: { citizenId: input.citizenId, projectId: input.projectId, consultationId: input.consultationId, optionKey: option.key, optionLabel: option.label },
+    update: { consultationId: input.consultationId, optionKey: option.key, optionLabel: option.label },
   });
-  if (!outcome.duplicate) aggregateNotifier.publish({ projectId: input.projectId, consultationId: input.consultationId, ...outcome.aggregate });
-  return outcome;
+  const aggregate = await computeAggregate(tx, input.projectId, input.consultationId, options);
+  return { duplicate: false, optionKey: option.key, aggregate };
 }
 
 function parseConsultationOptions(value: unknown): ConsultationOption[] {

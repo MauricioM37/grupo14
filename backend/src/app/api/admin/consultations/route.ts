@@ -15,3 +15,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(consultation, { status: 201 });
   } catch (error) { return errorResponse(error); }
 }
+
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  try {
+    requireAdmin(request);
+    const consultations = await getPrismaClient().consultation.findMany({
+      include: { project: { select: { id: true, title: true, status: true } }, aggregate: true },
+      orderBy: { createdAt: "desc" },
+    });
+    return NextResponse.json({ consultations });
+  } catch (error) { return errorResponse(error); }
+}

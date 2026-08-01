@@ -3,6 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import { getBackendConfig } from "@/lib/config";
 import { DomainError, DOMAIN_ERROR_CODE } from "@/lib/errors";
 import { createGroqIntegration, type GroqIntegration } from "@/integrations/groq";
+import { utf8Length } from "@/domain/projects/extraction";
 
 export async function answerProjectQuestion(
   prisma: PrismaClient,
@@ -21,7 +22,8 @@ export async function answerProjectQuestion(
   const source = project.sources[0];
   const summary = project.summaries[0];
   if (!source?.extractedText || !summary?.text) throw new DomainError(DOMAIN_ERROR_CODE.CONFLICT, "El proyecto aún no tiene contexto aprobado.");
-  const contextSize = project.title.length + project.description.length + source.extractedText.length + summary.text.length + question.length;
+  const contextSize = [project.title, project.description, source.extractedText, summary.text, question]
+    .reduce((total, value) => total + utf8Length(value), 0);
   if (contextSize > getBackendConfig().directContextMaxChars) {
     throw new DomainError(DOMAIN_ERROR_CODE.CONTEXT_TOO_LARGE, "El contexto es demasiado extenso. Formula una pregunta sobre una sección más acotada.");
   }

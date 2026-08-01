@@ -46,6 +46,7 @@ export async function createConsultation(
 export async function setConsultationStatus(prisma: PrismaClient, consultationId: string, status: "OPEN" | "CLOSED"): Promise<void> {
   const consultation = await prisma.consultation.findUnique({ where: { id: consultationId }, include: { project: true } });
   if (!consultation || consultation.project.status !== "PUBLISHED") throw new DomainError(DOMAIN_ERROR_CODE.CONFLICT, "La consulta requiere un proyecto publicado.");
+  if (status === "OPEN" && consultation.status === "CLOSED") throw new DomainError(DOMAIN_ERROR_CODE.CONFLICT, "Una consulta cerrada no se puede reabrir.");
   await prisma.consultation.update({ where: { id: consultationId }, data: { status } });
 }
 
@@ -54,15 +55,16 @@ export async function snapshotAudience(prisma: PrismaClient, consultationId: str
   if (!consultation || consultation.status !== "OPEN" || consultation.project.status !== "PUBLISHED") throw new DomainError(DOMAIN_ERROR_CODE.CONFLICT, "La consulta no está disponible para despacho.");
   const categoryIds = consultation.project.categories.map((category) => category.id);
   const citizens = await prisma.citizen.findMany({ where: { subscriptions: { some: { active: true, categoryId: { in: categoryIds } } } }, include: { subscriptions: { where: { active: true, categoryId: { in: categoryIds } }, include: { category: true } } } });
-  await prisma.$transaction(async (tx) => {
-    for (const citizen of citizens) {
-      await tx.audienceSnapshot.upsert({
-        where: { consultationId_citizenId: { consultationId, citizenId: citizen.id } },
-        create: { consultationId, citizenId: citizen.id, matchedSlugs: citizen.subscriptions.map((subscription) => subscription.category.slug) },
-        update: { matchedSlugs: citizen.subscriptions.map((subscription) => subscription.category.slug) },
-      });
-    }
-  });
+  if (citizens.length) {
+    await prisma.audienceSnapshot.createMany({
+      data: citizens.map((citizen) => ({
+        consultationId,
+        citizenId: citizen.id,
+        matchedSlugs: citizen.subscriptions.map((subscription) => subscription.category.slug),
+      })),
+      skipDuplicates: true,
+    });
+  }
   return citizens.length;
 }
 
@@ -75,15 +77,23 @@ export async function dispatchConsultation(prisma: PrismaClient, consultationId:
   if (!consultation || consultation.status !== "OPEN" || consultation.project.status !== "PUBLISHED") throw new DomainError(DOMAIN_ERROR_CODE.CONFLICT, "La consulta no está abierta.");
   await snapshotAudience(prisma, consultationId);
   const snapshots = await prisma.audienceSnapshot.findMany({ where: { consultationId }, include: { citizen: true, recipient: true } });
+  const activeCitizenRows = await prisma.subscription.findMany({
+    where: { active: true, category: { projects: { some: { id: consultation.projectId } } } },
+    select: { citizenId: true },
+  });
+  const activeCitizenIds = new Set(activeCitizenRows.map((row) => row.citizenId));
   const options = parseOptions(consultation.options);
   let sent = 0;
   let skipped = 0;
   for (const snapshot of snapshots) {
     const idempotencyKey = `${consultationId}:${snapshot.citizenId}`;
-    const recipient = snapshot.recipient ?? await prisma.campaignRecipient.create({ data: { consultationId, citizenId: snapshot.citizenId, snapshotId: snapshot.id, idempotencyKey } });
+    const recipient = snapshot.recipient ?? await prisma.campaignRecipient.upsert({
+      where: { snapshotId: snapshot.id },
+      create: { consultationId, citizenId: snapshot.citizenId, snapshotId: snapshot.id, idempotencyKey },
+      update: {},
+    });
     if (["SENT", "DELIVERED"].includes(recipient.status)) continue;
-    const active = await prisma.subscription.count({ where: { citizenId: snapshot.citizenId, active: true, category: { projects: { some: { id: consultation.projectId } } } } });
-    if (!active) {
+    if (!activeCitizenIds.has(snapshot.citizenId)) {
       await prisma.campaignRecipient.update({ where: { id: recipient.id }, data: { status: "OPTED_OUT", lastError: "Consentimiento inactivo o sin categoría coincidente" } });
       skipped += 1;
       continue;
