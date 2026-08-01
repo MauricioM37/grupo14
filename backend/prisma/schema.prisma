@@ -1,0 +1,11 @@
+// Initial database boundary for the API scaffold.
+// Domain models are intentionally omitted until the first implementation slice is defined.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
